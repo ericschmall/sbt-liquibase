@@ -11,4 +11,4 @@ scalaVersion := "2.10.4"
 
 libraryDependencies += "org.liquibase" % "liquibase-core" % "3.3.1"
 
-//publishTo := Some(Resolver.file("bigtoast.github.com", file(Path.userHome + "/Projects/BigToast/bigtoast.github.com/repo")))
+publishTo := Some(Resolver.file("ericschmall.github.com", file(Path.userHome + "/Projects/EricSchmall/ericschmall.github.com/repo")))

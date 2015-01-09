@@ -1,27 +1,24 @@
-
 package com.github.bigtoast.sbtliquibase
 
-import liquibase.diff.output.DiffOutputControl
 import sbt._
 import classpath._
 import Process._
 import Keys._
-
 import java.io.{File, PrintStream}
 import java.text.SimpleDateFormat
-
 import liquibase.integration.commandline.CommandLineUtils
 import liquibase.resource.FileSystemResourceAccessor
 import liquibase.database.Database
 import liquibase.Liquibase
-import liquibase.Contexts
+import liquibase.CatalogAndSchema
+import liquibase.diff.output.DiffOutputControl
 
 object LiquibasePlugin extends Plugin {
 
   val dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
 
   val liquibaseUpdate            = TaskKey[Unit]("liquibase-update", "Run a liquibase migration")
-  val liquibaseStatus            = TaskKey[Any]("liquibase-status", "Print count of unrun change sets")
+  val liquibaseStatus            = TaskKey[Unit]("liquibase-status", "Print count of unrun change sets")
   val liquibaseClearChecksums    = TaskKey[Unit]("liquibase-clear-checksums", "Removes all saved checksums from database log. Useful for 'MD5Sum Check Failed' errors")
   val liquibaseListLocks         = TaskKey[Unit]("liquibase-list-locks", "Lists who currently has locks on the database changelog")
   val liquibaseReleaseLocks      = TaskKey[Unit]("liquibase-release-locks", "Releases all locks on the database changelog")
@@ -46,37 +43,76 @@ object LiquibasePlugin extends Plugin {
   val liquibaseUsername  = SettingKey[String]("liquibase-username", "username yo.")
   val liquibasePassword  = SettingKey[String]("liquibase-password", "password")
   val liquibaseDriver    = SettingKey[String]("liquibase-driver", "driver")
-  val liquibaseDefaultCatalogName = SettingKey[String]("liquibase-default-catalog-name", "deafult catalog name")
-  val liquibaseDefaultSchemaName = SettingKey[String]("liquibase-default-schema-name","default schema name")
+  val liquibaseDefaultCatalog = SettingKey[Option[String]]("liquibase-default-catalog","default catalog")
+  val liquibaseDefaultSchemaName = SettingKey[Option[String]]("liquibase-default-schema-name","default schema name")
+  val liquibaseChangelogCatalog = SettingKey[Option[String]]("liquibase-changelog-catalog", "changelog catalog")
+  val liquibaseChangelogSchemaName = SettingKey[Option[String]]("liquibase-changelog-schema-name", "changelog schema name")
   val liquibaseContext = SettingKey[String]("liquibase-context","changeSet contexts to execute")
+  val liquibaseSnapShotTypes = SettingKey[Option[String]]("liquibase-snapshottypes", "snapshottypes for the diff")
 
   lazy val liquibaseDatabase = TaskKey[Database]("liquibase-database", "the database")
   lazy val liquibase = TaskKey[Liquibase]("liquibase", "liquibase object")
 
   lazy val liquibaseSettings :Seq[Setting[_]] = Seq[Setting[_]](
-    liquibaseDefaultSchemaName := "liquischema",
+    liquibaseDefaultCatalog := None,
+    liquibaseDefaultSchemaName := None,
+    liquibaseSnapShotTypes := None,
+    liquibaseChangelogCatalog := None,
+    liquibaseChangelogSchemaName := None,
     liquibaseChangelog := "src/main/migrations/changelog.xml",
     liquibaseContext := "",
     //changelog <<= baseDirectory( _ / "src" / "main" / "migrations" /  "changelog.xml" absolutePath ),
 
 
-  liquibaseDatabase <<= (liquibaseUrl, liquibaseUsername, liquibasePassword, liquibaseDriver, liquibaseDefaultSchemaName, fullClasspath in Runtime, liquibaseDefaultCatalogName, liquibaseDefaultSchemaName ) map {
-    (url :String, uname :String, pass :String, driver :String, schemaName :String, cpath, defaultCatalog: String, defaultSchema: String) =>
-      //CommandLineUtils.createDatabaseObject( ClasspathUtilities.toLoader(cpath.map(_.data)) ,url, uname, pass, driver, schemaName, null,null)
-      CommandLineUtils.createDatabaseObject( ClasspathUtilities.toLoader(cpath.map(_.data)) ,url, uname, pass, driver, defaultCatalog, defaultSchema, true, true, null, null, null, null, null)
-  },
+    liquibaseDatabase <<= (
+      liquibaseUrl,
+      liquibaseUsername,
+      liquibasePassword,
+      liquibaseDriver,
+      liquibaseDefaultCatalog,
+      liquibaseDefaultSchemaName,
+      liquibaseChangelogCatalog,
+      liquibaseChangelogSchemaName,
+      fullClasspath in Runtime
+      ) map { (
+                url,
+                uname,
+                pass,
+                driver,
+                liquibaseDefaultCatalog,
+                liquibaseDefaultSchemaName,
+                liquibaseChangelogCatalog,
+                liquibaseChangelogSchemaName,
+                cpath) =>
+      CommandLineUtils.createDatabaseObject(
+        ClasspathUtilities.toLoader(cpath.map(_.data)),
+        url,
+        uname,
+        pass,
+        driver,
+        liquibaseDefaultCatalog.getOrElse(null),
+        liquibaseDefaultSchemaName.getOrElse(null),
+        false, // outputDefaultCatalog
+        true, // outputDefaultSchema
+        null, // databaseClass
+        null, // driverPropertiesFile
+        null, // propertyProviderClass
+        liquibaseChangelogCatalog.getOrElse(null),
+        liquibaseChangelogSchemaName.getOrElse(null)
+      )
+    },
 
-  liquibase <<= ( liquibaseChangelog, liquibaseDatabase ) map {
-    ( cLog :String, dBase :Database ) =>
-      new Liquibase( cLog, new FileSystemResourceAccessor, dBase )
-  },
+    liquibase <<= ( liquibaseChangelog, liquibaseDatabase ) map {
+      ( cLog :String, dBase :Database ) =>
+        new Liquibase( cLog, new FileSystemResourceAccessor, dBase )
+    },
 
     liquibaseUpdate <<= (liquibase, liquibaseContext) map {
       (liquibase:Liquibase, context:String) =>
         liquibase.update(context)
     },
 
-    liquibaseStatus <<= liquibase map { _.reportStatus(true, new Contexts(""), new LoggerWriter( ConsoleLogger() ) ) },
+    liquibaseStatus <<= liquibase map { _.reportStatus(true, null.asInstanceOf[String], new LoggerWriter( ConsoleLogger() ) ) },
     liquibaseClearChecksums <<= liquibase map { _.clearCheckSums() },
     liquibaseListLocks <<= (streams, liquibase) map { (out, lbase) => lbase.reportLocks( new PrintStream(out.binary()) )  },
     liquibaseReleaseLocks <<= (streams, liquibase) map { (out, lbase) => lbase.forceReleaseLocks() },
@@ -87,7 +123,7 @@ object LiquibasePlugin extends Plugin {
 
     liquibaseRollback <<= inputTask { (argTask) =>
       ( streams, liquibase, argTask ) map { ( out, lbase, args :Seq[String] ) =>
-        lbase.rollback( args.head , new Contexts("") )
+        lbase.rollback( args.head , null.asInstanceOf[String] )
         out.log("Rolled back to tag %s".format(args.head))
       }
     },
@@ -101,13 +137,13 @@ object LiquibasePlugin extends Plugin {
 
     liquibaseRollbackSql <<= inputTask { (argTask) =>
       ( streams, liquibase, argTask ) map { ( out, lbase, args :Seq[String] ) =>
-        lbase.rollback( args.head , new Contexts(""), out.text() )
+        lbase.rollback( args.head , null.asInstanceOf[String], out.text() )
       }
     },
 
     liquibaseRollbackCountSql <<= inputTask { (argTask) =>
       ( streams, liquibase, argTask ) map { ( out, lbase, args :Seq[String] ) =>
-        lbase.rollback( args.head.toInt , new Contexts(""), out.text() )
+        lbase.rollback( args.head.toInt , null.asInstanceOf[String], out.text() )
       }
     },
 
@@ -136,10 +172,35 @@ object LiquibasePlugin extends Plugin {
       }
     },
 
-    liquibaseGenerateChangelog <<= (streams, liquibase, liquibaseChangelog, liquibaseDefaultSchemaName, baseDirectory) map { (out, lbase, clog, sname, bdir) =>
-      //CommandLineUtils.doGenerateChangeLog(clog, lbase.getDatabase(), sname, null,null,null, bdir / "src" / "main" / "migrations" absolutePath )
-      CommandLineUtils.doGenerateChangeLog(clog, lbase.getDatabase(), "catalogName", "schemaName", "snapshotTypes", "author", "context", bdir / "src" / "main" / "migrations" absolutePath , new DiffOutputControl())
-      //(String changeLogFile, Database originalDatabase, String catalogName, String schemaName, String snapshotTypes, String author, String context, String dataDir, DiffOutputControl diffOutputControl)
+    liquibaseGenerateChangelog <<= (
+      streams,
+      liquibase,
+      liquibaseChangelog,
+      liquibaseDefaultCatalog,
+      liquibaseDefaultSchemaName,
+      liquibaseChangelogCatalog,
+      liquibaseChangelogSchemaName,
+      liquibaseSnapShotTypes,
+      baseDirectory) map { (
+                             out,
+                             lbase,
+                             clog,
+                             defaultCatalog,
+                             defaultSchemaName,
+                             liquibaseChangelogCatalog,
+                             liquibaseChangelogSchemaName,
+                             liquibaseSnapShotTypes,
+                             bdir) =>
+      CommandLineUtils.doGenerateChangeLog(
+        clog,
+        lbase.getDatabase(),
+        defaultCatalog.getOrElse(null),
+        defaultSchemaName.getOrElse(null),
+        liquibaseSnapShotTypes.getOrElse(null), // snapshotTypes
+        null, // author
+        null, // context
+        bdir / "src" / "main" / "migrations" absolutePath,
+        new DiffOutputControl())
     },
 
     liquibaseChangelogSyncSql <<= (streams, liquibase ) map { ( out, lbase) =>

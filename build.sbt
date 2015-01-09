@@ -1,14 +1,15 @@
-
 sbtPlugin := true
 
 organization := "com.github.bigtoast"
 
 name := "sbt-liquibase"
 
-version := "0.0-1"
+version := "0.5"
 
-scalaVersion := "2.10.4"
+crossScalaVersions := Seq("2.9.2", "2.10.0")
 
 libraryDependencies += "org.liquibase" % "liquibase-core" % "3.3.1"
 
-publishTo := Some(Resolver.file("ericschmall.github.com", file(Path.userHome + "/Projects/EricSchmall/ericschmall.github.com/repo")))
+publishMavenStyle := true
+
+publishTo := Some(Resolver.file("bigtoast.github.com", file(Path.userHome + "/Projects/BigToast/bigtoast.github.com/repo")))

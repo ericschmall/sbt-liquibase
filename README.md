@@ -1,6 +1,18 @@
 Liquibase plugin for sbt 0.11 / 0.12
 ====================================
 
+# Read this
+
+The original project is located here:
+
+        <a href="https://github.com/bigtoast/sbt-liquibase">sbt-liquibase</a>
+
+I just made this copy to bump up the used liquibase-core version to 3.3.1 and added some functionality for:
+
+- asdasd
+*asdasd
+-aaa
+
 # Instructions for use:
 ### Step 1: Include the plugin in your build
 
@@ -84,12 +96,39 @@ Or if you are using a build object extending from Build:
 
         </td></tr>
         <tr>
-                <td> <b>liquibaseDefaultSchemaName</b> </td>
-                <td>Default schema name for the db if it isn't defined in the uri. This defaults to null.</td>
+                <td> <b>liquibaseChangelogCatalog</b> </td>
+                <td>Default catalog name for the changelog tables. This defaults to None.</td>
         </tr>
         <tr><td></td><td>
 
-            liquibaseDefaultSchemaName := "dbname"
+            liquibaseChangelogCatalog := Some("my_catalog")
+
+        </td></tr>
+        <tr>
+                <td> <b>liquibaseChangelogSchemaName</b> </td>
+                <td>Default schema name for the changelog tables. This defaults to None.</td>
+        </tr>
+        <tr><td></td><td>
+
+            liquibaseChangelogSchemaName := Some("my_schema")
+
+        </td></tr>
+        <tr>
+                <td> <b>liquibaseDefaultCatalog</b> </td>
+                <td>Default catalog name for the db if it isn't defined in the uri. This defaults to None.</td>
+        </tr>
+        <tr><td></td><td>
+
+            liquibaseDefaultCatalog := Some("my_catalog")
+
+        </td></tr>
+        <tr>
+                <td> <b>liquibaseDefaultSchemaName</b> </td>
+                <td>Default schema name for the db if it isn't defined in the uri. This defaults to None.</td>
+        </tr>
+        <tr><td></td><td>
+
+            liquibaseDefaultSchemaName := Some("my_schema")
 
         </td></tr>
         <tr>

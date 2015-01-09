@@ -5,7 +5,7 @@ Liquibase plugin for sbt 0.11 / 0.12
 
 The original project is located here:
 
-        <a href="https://github.com/bigtoast/sbt-liquibase">sbt-liquibase</a>
+        [sbt-liquibase](https://github.com/bigtoast/sbt-liquibase")
 
 I just made this copy to bump up the used liquibase-core version to 3.3.1 and added some functionality for:
 
